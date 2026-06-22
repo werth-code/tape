@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0b0c0d"/>
+  <g fill="none" stroke="#34d399" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M86 330 L176 250 L246 296 L330 150 L426 214"/>
+  </g>
+  <circle cx="426" cy="214" r="15" fill="#34d399"/>
+  <text x="256" y="430" font-family="Georgia, 'Times New Roman', serif" font-size="150" fill="#f4f1ea" text-anchor="middle" letter-spacing="2">T<tspan fill="#e6b450">.</tspan></text>
+</svg>

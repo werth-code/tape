@@ -1,0 +1,15 @@
+{
+  "name": "TAPE — Stock Tracker",
+  "short_name": "TAPE",
+  "description": "A precision market instrument. Track tickers, live prices, charts, news and earnings.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0c0d",
+  "theme_color": "#0b0c0d",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>TAPE — Read the market</title>
+  <meta name="description" content="A precision market instrument. Track tickers, prices, charts, news and earnings." />
+
+  <!-- iOS web-app / App Store path -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TAPE" />
+  <meta name="theme-color" content="#0b0c0d" />
+  <link rel="manifest" href="manifest.json" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ambient backdrop visible on wide screens (desktop preview) -->
+  <div class="ambient" aria-hidden="true"></div>
+
+  <!-- the device column: full-bleed on phones, framed on desktop -->
+  <div class="device" id="device">
+    <div class="grain" aria-hidden="true"></div>
+
+    <!-- status / market clock bar -->
+    <header class="statusbar" id="statusbar">
+      <span class="brand">TAPE<span class="brand-dot">.</span></span>
+      <span class="market-state" id="market-state">
+        <span class="pulse" id="market-pulse"></span>
+        <span id="market-label">MARKET</span>
+      </span>
+      <button class="iconbtn" id="account-chip" aria-label="Account">
+        <span id="account-initial">·</span>
+      </button>
+    </header>
+
+    <!-- continuous ticker tape -->
+    <div class="tape" id="tape" aria-hidden="true">
+      <div class="tape-track" id="tape-track"></div>
+    </div>
+
+    <!-- routed views render here -->
+    <main class="viewport" id="viewport"></main>
+
+    <!-- bottom tab bar -->
+    <nav class="tabbar" id="tabbar">
+      <button class="tab" data-route="watchlist" aria-label="Watchlist">
+        <svg viewBox="0 0 24 24" class="tab-ico"><path d="M4 6h10M4 12h16M4 18h7"/><circle cx="18.5" cy="6" r="1.6" fill="currentColor" stroke="none"/></svg>
+        <span>Watchlist</span>
+      </button>
+      <button class="tab" data-route="search" aria-label="Search">
+        <svg viewBox="0 0 24 24" class="tab-ico"><circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/></svg>
+        <span>Search</span>
+      </button>
+      <button class="tab" data-route="research" aria-label="Research">
+        <svg viewBox="0 0 24 24" class="tab-ico"><path d="M4 19V8M9 19V4M14 19v-7M19 19v-11"/></svg>
+        <span>Research</span>
+      </button>
+      <button class="tab" data-route="account" aria-label="Account">
+        <svg viewBox="0 0 24 24" class="tab-ico"><circle cx="12" cy="8.5" r="3.4"/><path d="M5 19.5c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5"/></svg>
+        <span>Account</span>
+      </button>
+    </nav>
+
+    <!-- toast host -->
+    <div class="toast-host" id="toast-host" aria-live="polite"></div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
