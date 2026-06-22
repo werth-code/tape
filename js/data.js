@@ -373,11 +373,26 @@ class Market {
   }
 
   subscribe(fn) { return this.provider.subscribe(fn); }
-  start(getSymbols, intervalMs = 2600) {
+  start(getSymbols) {
     this.stop();
-    const run = () => { try { this.provider.tick(getSymbols()); } catch (_) {} };
+    this._cursor = 0;
+    const finn = this.mode === "finnhub";
+    // Finnhub free tier = 60 req/min. Poll a rotating batch slowly so we
+    // stay ~50/min and leave headroom for on-demand detail-view fetches.
+    const interval = finn ? 6000 : 2600;
+    const batch = finn ? 5 : Infinity;
+    const run = () => {
+      const all = getSymbols();
+      if (!all.length) return;
+      let list = all;
+      if (batch !== Infinity && all.length > batch) {
+        list = [];
+        for (let i = 0; i < batch; i++) list.push(all[this._cursor++ % all.length]);
+      }
+      try { this.provider.tick(list); } catch (_) {}
+    };
     run();
-    this._timer = setInterval(run, intervalMs);
+    this._timer = setInterval(run, interval);
   }
   stop() { if (this._timer) { clearInterval(this._timer); this._timer = null; } }
 
