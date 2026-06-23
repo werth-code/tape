@@ -147,15 +147,26 @@ async function viewWatchlist() {
   const view = document.createElement("div");
   view.className = "view view-enter";
 
+  const headHTML = `
+    <div class="page-head">
+      <div class="eyebrow">${store.lists.length > 1 ? `${store.lists.length} lists` : "Portfolio"} · ${symbols.length} symbol${symbols.length === 1 ? "" : "s"}</div>
+      <button class="list-switch" id="list-switch" aria-label="Switch list">
+        <span class="page-title">${esc(store.activeList.name)}</span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg>
+      </button>
+    </div>`;
+
   if (!symbols.length) {
     view.innerHTML = `
-      <div class="page-head"><div class="eyebrow">Portfolio</div><h1 class="page-title">Your <span class="em">tape</span></h1></div>
+      ${headHTML}
+      ${dataBanner()}
       <div class="empty">
         <div class="empty-mark">∅</div>
-        <p>No tickers yet. Add the symbols you want to follow and they'll live here.</p>
-        <button class="btn btn-primary" id="go-add">+ Add your first ticker</button>
+        <p>“${esc(store.activeList.name)}” is empty. Add the symbols you want to follow.</p>
+        <button class="btn btn-primary" id="go-add">+ Add a ticker</button>
       </div>`;
     viewport.replaceChildren(view);
+    $("#list-switch", view).onclick = () => openListsSheet();
     $("#go-add").onclick = () => openAddSheet();
     return;
   }
@@ -183,10 +194,7 @@ async function viewWatchlist() {
   ];
 
   view.innerHTML = `
-    <div class="page-head">
-      <div class="eyebrow">Portfolio · ${symbols.length} symbols</div>
-      <h1 class="page-title">Your <span class="em">tape</span></h1>
-    </div>
+    ${headHTML}
 
     ${dataBanner()}
 
@@ -210,6 +218,7 @@ async function viewWatchlist() {
     <div class="rows stagger ${editing ? "editing" : ""}" id="rows"></div>
   `;
   viewport.replaceChildren(view);
+  $("#list-switch", view).onclick = () => openListsSheet();
 
   const rowsEl = $("#rows", view);
   for (const q of qs) rowsEl.appendChild(await rowEl(q));
@@ -489,6 +498,108 @@ function openAddSheet() {
   input.addEventListener("input", () => paint(input.value));
   paint("");
   setTimeout(() => input.focus(), 280);
+}
+
+/* ---- lists: switch / create / rename / delete ---- */
+const ICON_PENCIL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`;
+const ICON_TRASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>`;
+const ICON_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>`;
+const ICON_X = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+
+function openListsSheet() {
+  const el = document.createElement("div");
+  let mode = null;        // 'create' | 'rename' | 'delete'
+  let targetId = null;
+  let changed = false;
+
+  const { close } = openSheet(el, { onClose: () => { if (changed) render(); } });
+
+  const paint = () => {
+    el.innerHTML = `
+      <div class="sheet-grip"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">Your lists</div>
+        <button class="sheet-close" data-act="close">Done</button>
+      </div>
+      <div class="lists-rows" id="lrows"></div>
+      <div id="lnew"></div>`;
+    el.querySelector('[data-act="close"]').onclick = close;
+
+    const rows = el.querySelector("#lrows");
+    store.lists.forEach((l) => {
+      const active = l.id === store.activeListId;
+      const r = document.createElement("div");
+      r.className = "list-row" + (active ? " active" : "");
+
+      if (mode === "rename" && targetId === l.id) {
+        r.innerHTML = `
+          <input class="list-rename-input" value="${esc(l.name)}" maxlength="24" />
+          <div class="list-row-actions">
+            <button class="list-icon" data-cancel aria-label="Cancel">${ICON_X}</button>
+            <button class="list-icon ok" data-save aria-label="Save">${ICON_CHECK}</button>
+          </div>`;
+        const inp = r.querySelector(".list-rename-input");
+        const save = () => { store.renameList(l.id, inp.value); changed = true; mode = null; targetId = null; paint(); };
+        r.querySelector("[data-cancel]").onclick = () => { mode = null; targetId = null; paint(); };
+        r.querySelector("[data-save]").onclick = save;
+        inp.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { mode = null; targetId = null; paint(); } });
+        setTimeout(() => { inp.focus(); inp.select(); }, 40);
+
+      } else if (mode === "delete" && targetId === l.id) {
+        r.innerHTML = `
+          <div class="list-row-main" style="cursor:default">
+            <div><div class="list-row-name">Delete “${esc(l.name)}”?</div>
+            <div class="list-row-meta">${l.symbols.length} symbol${l.symbols.length === 1 ? "" : "s"} removed</div></div>
+          </div>
+          <div class="list-row-actions">
+            <button class="list-btn-text" data-cancel>Cancel</button>
+            <button class="list-btn-text danger" data-confirm>Delete</button>
+          </div>`;
+        r.querySelector("[data-cancel]").onclick = () => { mode = null; targetId = null; paint(); };
+        r.querySelector("[data-confirm]").onclick = () => { store.deleteList(l.id); changed = true; mode = null; targetId = null; paint(); };
+
+      } else {
+        r.innerHTML = `
+          <div class="list-row-main">
+            <span class="list-check">${active ? ICON_CHECK : ""}</span>
+            <div>
+              <div class="list-row-name">${esc(l.name)}</div>
+              <div class="list-row-meta">${l.symbols.length} symbol${l.symbols.length === 1 ? "" : "s"}</div>
+            </div>
+          </div>
+          <div class="list-row-actions">
+            <button class="list-icon" data-rename aria-label="Rename ${esc(l.name)}">${ICON_PENCIL}</button>
+            ${store.lists.length > 1 ? `<button class="list-icon danger" data-del aria-label="Delete ${esc(l.name)}">${ICON_TRASH}</button>` : ""}
+          </div>`;
+        r.querySelector(".list-row-main").onclick = () => { store.setActiveList(l.id); changed = true; close(); };
+        r.querySelector("[data-rename]").onclick = () => { mode = "rename"; targetId = l.id; paint(); };
+        const del = r.querySelector("[data-del]");
+        if (del) del.onclick = () => { mode = "delete"; targetId = l.id; paint(); };
+      }
+      rows.appendChild(r);
+    });
+
+    const nl = el.querySelector("#lnew");
+    if (mode === "create") {
+      nl.innerHTML = `
+        <div class="searchbox sheet-search"><input id="nl-input" type="text" placeholder="List name — e.g. Tech, Dividends…" maxlength="24" autocomplete="off" /></div>
+        <div class="sheet-actions">
+          <button class="btn btn-ghost btn-block" data-cancelnew>Cancel</button>
+          <button class="btn btn-primary btn-block" data-create>Create list</button>
+        </div>`;
+      const inp = nl.querySelector("#nl-input");
+      const create = () => { store.createList(inp.value); changed = true; close(); };
+      nl.querySelector("[data-create]").onclick = create;
+      nl.querySelector("[data-cancelnew]").onclick = () => { mode = null; paint(); };
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") create(); if (e.key === "Escape") { mode = null; paint(); } });
+      setTimeout(() => inp.focus(), 60);
+    } else {
+      nl.innerHTML = `<button class="btn btn-ghost btn-block" data-newlist style="margin-top:14px">+ New list</button>`;
+      nl.querySelector("[data-newlist]").onclick = () => { mode = "create"; paint(); };
+    }
+  };
+
+  paint();
 }
 
 /* ================================================================
@@ -809,7 +920,7 @@ function renderProfile(view) {
         <div class="avatar">${store.email[0].toUpperCase()}</div>
         <div>
           <div class="profile-email">${esc(store.email)}</div>
-          <div class="profile-since">Member since ${since} · ${store.watchlist.length} symbols tracked</div>
+          <div class="profile-since">Member since ${since} · ${store.lists.length} list${store.lists.length === 1 ? "" : "s"} · ${store.totalSymbols} symbols</div>
         </div>
       </div>
 
