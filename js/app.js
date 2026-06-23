@@ -152,11 +152,11 @@ async function viewWatchlist() {
       <div class="page-head"><div class="eyebrow">Portfolio</div><h1 class="page-title">Your <span class="em">tape</span></h1></div>
       <div class="empty">
         <div class="empty-mark">∅</div>
-        <p>No tickers yet. Search the market and add the symbols you want to follow.</p>
-        <button class="btn btn-primary" id="go-search">Search the market</button>
+        <p>No tickers yet. Add the symbols you want to follow and they'll live here.</p>
+        <button class="btn btn-primary" id="go-add">+ Add your first ticker</button>
       </div>`;
     viewport.replaceChildren(view);
-    $("#go-search").onclick = () => navigate("search");
+    $("#go-add").onclick = () => openAddSheet();
     return;
   }
 
@@ -227,33 +227,112 @@ function dataBanner() {
   </div>`;
 }
 
+function nameFor(sym) { return UNIVERSE.find((u) => u.sym === sym)?.name || sym; }
+
 async function rowEl(q) {
   const row = document.createElement("div");
   row.className = "row";
   row.dataset.sym = q.sym;
   const spark = await market.history(q.sym, "1D");
   row.innerHTML = `
-    <div class="row-handle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 7h.01M8 12h.01M8 17h.01M15 7h.01M15 12h.01M15 17h.01"/></svg></div>
-    <div class="row-id">
-      <div class="row-sym">${q.sym}</div>
-      <div class="row-name">${esc(q.name)}</div>
+    <div class="row-delete-bg" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      <span>Delete</span>
     </div>
-    <div class="row-spark">${sparkline(spark, { up: q.change >= 0 })}</div>
-    <div class="row-px">
-      <div class="row-price" data-px="${q.sym}">${fmtPrice(q.price)}</div>
-      <div class="row-change ${dirClass(q.change)}" data-ch="${q.sym}">${fmtSigned(q.change)} (${fmtPct(q.changePct)})</div>
+    <div class="row-fg">
+      <div class="row-handle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 7h.01M8 12h.01M8 17h.01M15 7h.01M15 12h.01M15 17h.01"/></svg></div>
+      <div class="row-id">
+        <div class="row-sym">${q.sym}</div>
+        <div class="row-name">${esc(q.name)}</div>
+      </div>
+      <div class="row-spark">${sparkline(spark, { up: q.change >= 0 })}</div>
+      <div class="row-px">
+        <div class="row-price" data-px="${q.sym}">${fmtPrice(q.price)}</div>
+        <div class="row-change ${dirClass(q.change)}" data-ch="${q.sym}">${fmtSigned(q.change)} (${fmtPct(q.changePct)})</div>
+      </div>
+      <button class="row-remove" aria-label="Remove ${q.sym}">−</button>
     </div>
-    <button class="row-remove" aria-label="Remove ${q.sym}">−</button>
   `;
   lastPrice[q.sym] = q.price;
-  row.querySelector(".row-id").onclick = () => { if (!editing) navigate(`stock/${q.sym}`); };
-  row.querySelector(".row-spark").onclick = () => { if (!editing) navigate(`stock/${q.sym}`); };
-  row.querySelector(".row-px").onclick = () => { if (!editing) navigate(`stock/${q.sym}`); };
+  const fg = row.querySelector(".row-fg");
+
+  // tap → open detail (suppressed right after a swipe; closes an open row first)
+  fg.addEventListener("click", () => {
+    if (editing) return;
+    if (row._suppressClick) { row._suppressClick = false; return; }
+    if (row.classList.contains("swiped")) { closeSwipe(row); return; }
+    navigate(`stock/${q.sym}`);
+  });
+  // edit-mode remove (immediate — edit is already an intentional state)
   row.querySelector(".row-remove").onclick = (e) => {
     e.stopPropagation();
     store.remove(q.sym); toast(`Removed ${q.sym}`, "down"); render();
   };
+  // tap the revealed Delete layer → confirm
+  row.querySelector(".row-delete-bg").onclick = () => { closeSwipe(row); confirmRemove(q.sym); };
+
+  if (!editing) attachSwipe(row, q.sym);
   return row;
+}
+
+/* ---- swipe-to-delete (pointer based, works on touch) ---- */
+function closeSwipe(row) {
+  const fg = row.querySelector(".row-fg");
+  fg.style.transition = "transform .22s var(--ease)";
+  fg.style.transform = "";
+  row.classList.remove("swiped");
+  // keep the red layer visible until the slide-back finishes, then hide it
+  setTimeout(() => { if (!row.classList.contains("swiped")) row.classList.remove("swiping"); }, 240);
+}
+function closeAllSwipes(except) {
+  document.querySelectorAll(".row.swiped").forEach((r) => { if (r !== except) closeSwipe(r); });
+}
+
+function attachSwipe(row, sym) {
+  const fg = row.querySelector(".row-fg");
+  const REVEAL = 78;                 // open offset that parks the Delete action
+  let startX = 0, startY = 0, dx = 0, mode = null, base = 0, w = 0, pid = null;
+
+  const setX = (x) => { fg.style.transform = x ? `translateX(${x}px)` : ""; };
+
+  fg.addEventListener("pointerdown", (e) => {
+    if (editing) return;
+    pid = e.pointerId; startX = e.clientX; startY = e.clientY; dx = 0; mode = null;
+    base = row.classList.contains("swiped") ? -REVEAL : 0;
+    w = row.getBoundingClientRect().width;
+    fg.style.transition = "none";
+  });
+
+  fg.addEventListener("pointermove", (e) => {
+    if (editing || pid === null) return;
+    const mx = e.clientX - startX, my = e.clientY - startY;
+    if (mode === null) {
+      if (Math.abs(mx) > 8 && Math.abs(mx) > Math.abs(my)) { mode = "swipe"; row.classList.add("swiping"); closeAllSwipes(row); try { fg.setPointerCapture(pid); } catch (_) {} }
+      else if (Math.abs(my) > 8) { mode = "scroll"; }
+    }
+    if (mode === "swipe") {
+      e.preventDefault();
+      dx = Math.max(-w * 0.8, Math.min(0, base + mx));   // left only
+      setX(dx);
+    }
+  });
+
+  const end = () => {
+    if (pid === null) return;
+    pid = null;
+    if (mode === "swipe") {
+      row._suppressClick = true;
+      if (dx <= -w * 0.45) { closeSwipe(row); confirmRemove(sym); }     // big swipe → confirm
+      else if (dx <= -REVEAL * 0.55) {                                   // park open, show Delete
+        fg.style.transition = "transform .22s var(--ease)"; setX(-REVEAL); row.classList.add("swiped");
+      } else { closeSwipe(row); }                                        // snap back
+    } else {
+      fg.style.transition = "";
+    }
+    mode = null;
+  };
+  fg.addEventListener("pointerup", end);
+  fg.addEventListener("pointercancel", end);
 }
 
 /* ---- drag reorder (pointer based, works on touch) ---- */
@@ -310,6 +389,98 @@ function makeReorderable(listEl) {
     drag = null;
     if (changed) { store.reorder(order); render(); }
   }
+}
+
+/* ================================================================
+   BOTTOM SHEETS — confirm + quick-add
+   ================================================================ */
+function openSheet(contentEl, { onClose } = {}) {
+  closeAllSwipes();
+  const host = document.createElement("div");
+  host.className = "sheet-backdrop";
+  const sheet = document.createElement("div");
+  sheet.className = "sheet";
+  sheet.appendChild(contentEl);
+  host.appendChild(sheet);
+  $("#device").appendChild(host);
+  requestAnimationFrame(() => host.classList.add("show"));
+  let closed = false;
+  const close = () => {
+    if (closed) return; closed = true;
+    host.classList.remove("show");
+    setTimeout(() => host.remove(), 280);
+    if (onClose) onClose();
+  };
+  host.addEventListener("click", (e) => { if (e.target === host) close(); });
+  return { close, sheet };
+}
+
+function confirmRemove(sym) {
+  const el = document.createElement("div");
+  el.innerHTML = `
+    <div class="sheet-grip"></div>
+    <div class="sheet-title">Remove ${esc(sym)}?</div>
+    <div class="sheet-body"><b>${esc(nameFor(sym))}</b> will be taken off your watchlist. You can add it back anytime.</div>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost btn-block" data-act="cancel">Cancel</button>
+      <button class="btn btn-danger btn-block" data-act="ok">Remove</button>
+    </div>`;
+  const { close } = openSheet(el);
+  el.querySelector('[data-act="cancel"]').onclick = close;
+  el.querySelector('[data-act="ok"]').onclick = () => {
+    close();
+    store.remove(sym); toast(`Removed ${sym}`, "down"); render();
+  };
+}
+
+function openAddSheet() {
+  const el = document.createElement("div");
+  el.innerHTML = `
+    <div class="sheet-grip"></div>
+    <div class="sheet-head">
+      <div class="sheet-title">Add ticker</div>
+      <button class="sheet-close" data-act="close">Done</button>
+    </div>
+    <div class="searchbox sheet-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="add-input" type="text" placeholder="Ticker or company name…" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+    </div>
+    <div class="sheet-results" id="add-results"></div>`;
+  let changed = false;
+  const { close } = openSheet(el, { onClose: () => { if (changed) render(); } });
+  el.querySelector('[data-act="close"]').onclick = close;
+
+  const input = el.querySelector("#add-input");
+  const results = el.querySelector("#add-results");
+  const paint = (qstr) => {
+    const list = qstr ? market.search(qstr) : UNIVERSE.filter((u) => !store.has(u.sym)).sort((a, b) => b.mcap - a.mcap).slice(0, 12);
+    results.innerHTML = list.length ? "" : `<div class="sheet-empty">No matches for “${esc(qstr)}”. Try a ticker like AAPL or NVDA.</div>`;
+    list.forEach((s) => {
+      const r = document.createElement("div");
+      r.className = "result";
+      const added = store.has(s.sym);
+      r.innerHTML = `
+        <div>
+          <div class="result-sym">${s.sym}</div>
+          <div class="result-name">${esc(s.name)}</div>
+        </div>
+        <span class="result-exch">${s.exch}</span>
+        <button class="result-add ${added ? "added" : ""}" aria-label="Add ${s.sym}">${added ? "✓" : "+"}</button>`;
+      const btn = r.querySelector(".result-add");
+      const toggle = (e) => {
+        if (e) e.stopPropagation();
+        changed = true;
+        if (store.has(s.sym)) { store.remove(s.sym); btn.classList.remove("added"); btn.textContent = "+"; }
+        else { store.add(s.sym); btn.classList.add("added"); btn.textContent = "✓"; toast(`Added ${s.sym}`); }
+      };
+      btn.onclick = toggle;
+      r.querySelector(".result-sym").onclick = toggle;
+      results.appendChild(r);
+    });
+  };
+  input.addEventListener("input", () => paint(input.value));
+  paint("");
+  setTimeout(() => input.focus(), 280);
 }
 
 /* ================================================================
@@ -404,7 +575,7 @@ async function viewResearch() {
       <div class="block-title">${title}</div>
       <div class="rows" style="padding:6px 0">
         ${items.map((q) => `
-          <div class="row" data-go="${q.sym}" style="grid-template-columns:1fr auto auto">
+          <div class="qrow" data-go="${q.sym}" style="grid-template-columns:1fr auto auto">
             <div class="row-id"><div class="row-sym">${q.sym}</div><div class="row-name">${esc(q.name)}</div></div>
             <div class="row-px"><div class="row-price" data-px="${q.sym}">${fmtPrice(q.price)}</div></div>
             <div class="row-change ${dirClass(q.change)}" data-chp="${q.sym}" style="min-width:64px;text-align:right">${fmtPct(q.changePct)}</div>
@@ -723,6 +894,8 @@ function render() {
   const { route, arg } = parseHash();
   setActiveTab(route);
   if (route !== "watchlist") editing = false;
+  // floating add button: watchlist only, not while editing, only once there are rows
+  $("#fab").classList.toggle("show", route === "watchlist" && !editing && store.watchlist.length > 0);
   switch (route) {
     case "search": return viewSearch();
     case "research": return viewResearch();
@@ -737,6 +910,8 @@ function render() {
    ================================================================ */
 document.querySelectorAll(".tab").forEach((t) => t.onclick = () => navigate(t.dataset.route));
 $("#account-chip").onclick = () => navigate("account");
+$("#fab").onclick = () => openAddSheet();
+viewport.addEventListener("scroll", () => closeAllSwipes());
 window.addEventListener("hashchange", render);
 
 paintClock();
