@@ -172,7 +172,15 @@ async function viewWatchlist() {
 
   const heroSpark = await market.history(qs[0].sym, "1D");
 
-  const presets = [["manual", "Manual"], ["alpha", "A–Z"], ["gainers", "Gainers"], ["losers", "Losers"], ["price", "Price"]];
+  const A_UP = `<svg class="sort-arrow up" viewBox="0 0 24 24"><path d="M12 19V6M6 12l6-6 6 6"/></svg>`;
+  const A_DN = `<svg class="sort-arrow down" viewBox="0 0 24 24"><path d="M12 5v13M6 12l6 6 6-6"/></svg>`;
+  const presets = [
+    { k: "manual", l: "Manual" },
+    { k: "alpha", l: "A–Z" },
+    { k: "gainers", l: A_UP, aria: "Top gainers" },
+    { k: "losers", l: A_DN, aria: "Top losers" },
+    { k: "price", l: "Price" },
+  ];
 
   view.innerHTML = `
     <div class="page-head">
@@ -194,7 +202,7 @@ async function viewWatchlist() {
 
     <div class="toolbar">
       <div class="seg" id="sort-seg">
-        ${presets.map(([k, l]) => `<button class="seg-btn ${store.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
+        ${presets.map((p) => `<button class="seg-btn ${store.sort === p.k ? "active" : ""}" data-sort="${p.k}"${p.aria ? ` aria-label="${p.aria}" title="${p.aria}"` : ""}>${p.l}</button>`).join("")}
       </div>
       <button class="toolbtn ${editing ? "on" : ""}" id="edit-btn">${editing ? "Done" : "Edit"}</button>
     </div>
@@ -894,8 +902,8 @@ function render() {
   const { route, arg } = parseHash();
   setActiveTab(route);
   if (route !== "watchlist") editing = false;
-  // floating add button: watchlist only, not while editing, only once there are rows
-  $("#fab").classList.toggle("show", route === "watchlist" && !editing && store.watchlist.length > 0);
+  // header add button shows on the watchlist only
+  $("#header-add").classList.toggle("hidden", route !== "watchlist");
   switch (route) {
     case "search": return viewSearch();
     case "research": return viewResearch();
@@ -910,7 +918,7 @@ function render() {
    ================================================================ */
 document.querySelectorAll(".tab").forEach((t) => t.onclick = () => navigate(t.dataset.route));
 $("#account-chip").onclick = () => navigate("account");
-$("#fab").onclick = () => openAddSheet();
+$("#header-add").onclick = () => openAddSheet();
 viewport.addEventListener("scroll", () => closeAllSwipes());
 window.addEventListener("hashchange", render);
 

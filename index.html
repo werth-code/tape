@@ -34,9 +34,14 @@
         <span class="pulse" id="market-pulse"></span>
         <span id="market-label">MARKET</span>
       </span>
-      <button class="iconbtn" id="account-chip" aria-label="Account">
-        <span id="account-initial">·</span>
-      </button>
+      <div class="status-actions">
+        <button class="iconbtn hidden" id="header-add" aria-label="Add ticker">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="iconbtn" id="account-chip" aria-label="Account">
+          <span id="account-initial">·</span>
+        </button>
+      </div>
     </header>
 
     <!-- continuous ticker tape -->
@@ -66,11 +71,6 @@
         <span>Account</span>
       </button>
     </nav>
-
-    <!-- floating add-ticker button (watchlist only) -->
-    <button class="fab" id="fab" aria-label="Add ticker">
-      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
 
     <!-- toast host -->
     <div class="toast-host" id="toast-host" aria-live="polite"></div>
